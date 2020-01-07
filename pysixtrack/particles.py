@@ -1,6 +1,12 @@
 import numpy as np
 from .mathlibs import MathlibDefault
+from importlib import util
+import types
+import pdb
 
+mpmath_spec = util.find_spec("mpmath")
+if mpmath_spec is not None:
+    from mpmath.ctx_mp import MPContext as mpmath_ctx
 
 def count_not_none(*lst):
     return len(lst) - sum(p is None for p in lst)
@@ -42,48 +48,87 @@ class Particles(object):
     elemid  int
     """
 
-    clight = 299792458
-    pi = 3.141592653589793238
-    echarge = 1.602176565e-19
-    emass = 0.510998928e6
-    # Was: 938.272046e6;
-    # correct value acc. to PDG 2018 938.2720813(58)e6 MeV/c²
-    pmass = 938.272081e6
-    epsilon0 = 8.854187817e-12
-    mu0 = 4e-7 * pi
-    eradius = echarge ** 2 / (4 * pi * epsilon0 * emass * clight ** 2)
-    pradius = echarge ** 2 / (4 * pi * epsilon0 * pmass * clight ** 2)
-    anumber = 6.02214129e23
-    kboltz = 1.3806488e-23
+    CLIGHT_STR = "299792458.0"
+    ECHARGE_STR = "1.602176565e-19"
+    EMASS_STR = "0.510998928e6"
+    NMASS_STR = "931.49410242e6"
+    PMASS_STR = "938.272081e6"
+    EPSILON0_STR = "8.854187817e-12"
+    ANUMBER_STR = "6.02214129e23"
+    KBOLZ_STR = "1.3806488e-23"
+
+    def __init_mathlib(self, mathlib=MathlibDefault,
+            real_type=np.float64, int_type=np.int64 ):
+        if mpmath_spec is not None and \
+            isinstance( mathlib, types.ModuleType ) and \
+            mathlib.__name__ == 'mpmath':
+            from mpmath import mp, pi as mp_pi
+            real_type = mp.mpf
+            self.PI = mp_pi
+        else:
+            self.PI = np.pi
+
+        self.CLIGHT   = real_type(self.CLIGHT_STR)
+        self.ECHARGE  = real_type(self.ECHARGE_STR)
+        self.EMASS    = real_type(self.EMASS_STR)
+        self.NMASS    = real_type(self.NMASS_STR)
+        self.PMASS    = real_type(self.PMASS_STR)
+        self.EPSILON0 = real_type(self.EPSILON0_STR)
+        self.ANUMBER  = real_type(self.ANUMBER_STR)
+        self.KBOLZ    = real_type(self.KBOLZ_STR)
+        self.MU0      = real_type("4.0e-7") * self.PI
+        self.ERADIUS  = self.ECHARGE * self.ECHARGE / ( real_type( 4 ) *
+            self.PI * self.EPSILON0 * self.EMASS * self.CLIGHT * self.CLIGHT )
+        self.PRADIUS  = self.ECHARGE * self.ECHARGE / ( real_type( 4 ) *
+            self.PI * self.EPSILON0 * self.PMASS * self.CLIGHT * self.CLIGHT )
+
+        self._m = mathlib
+        self._real_type = real_type
+        self._int_type = int_type
+
 
     def _g1(self, mass0, p0c, energy0):
+        p0c = self._real_type(p0c)
+        energy0 = self._real_type(energy0)
+        mass0 = self._real_type(mass0)
         beta0 = p0c / energy0
         gamma0 = energy0 / mass0
         return mass0, beta0, gamma0, p0c, energy0
 
     def _g2(self, mass0, beta0, gamma0):
+        mass0 = self._real_type(mass0)
+        beta0 = self._real_type(beta0)
+        gamma0 = self._real_type(gamma0)
         energy0 = mass0 * gamma0
         p0c = energy0 * beta0
         return mass0, beta0, gamma0, p0c, energy0
 
     def _f1(self, mass0, p0c):
         sqrt = self._m.sqrt
-        energy0 = sqrt(p0c ** 2 + mass0 ** 2)
+        mass0 = self._real_type(mass0)
+        p0c=self._real_type(p0c)
+        energy0 = sqrt(p0c * p0c + mass0 * mass0)
         return self._g1(mass0, p0c, energy0)
 
     def _f2(self, mass0, energy0):
         sqrt = self._m.sqrt
-        p0c = sqrt(energy0 ** 2 - mass0 ** 2)
+        mass0 = self._real_type(mass0)
+        energy0 = self._real_type(energy0)
+        p0c = sqrt(energy0 * energy0 - mass0 * mass0)
         return self._g1(mass0, p0c, energy0)
 
     def _f3(self, mass0, beta0):
         sqrt = self._m.sqrt
-        gamma0 = 1 / sqrt(1 - beta0 ** 2)
+        one = self._real_type("1")
+        gamma0 = 1 / sqrt(one - beta0 * beta0)
         return self._g2(mass0, beta0, gamma0)
 
     def _f4(self, mass0, gamma0):
         sqrt = self._m.sqrt
-        beta0 = sqrt(1 - 1 / gamma0 ** 2)
+        mass0 = self._real_type(mass0)
+        gamma0 = self._real_type(gamma0)
+        one = self._real_type("1")
+        beta0 = sqrt(one - one / gamma0 * gamma0)
         return self._g2(mass0, beta0, gamma0)
 
     def copy(self, index=None):
@@ -100,7 +145,7 @@ class Particles(object):
     def __init__ref(self, p0c, energy0, gamma0, beta0):
         not_none = count_not_none(beta0, gamma0, p0c, energy0)
         if not_none == 0:
-            p0c = 1e9
+            p0c = "1e9"
             not_none = 1
             # raise ValueError("Particles defined without energy reference")
         if not_none == 1:
@@ -129,7 +174,7 @@ class Particles(object):
     def __init__delta(self, delta, ptau, psigma):
         not_none = count_not_none(delta, ptau, psigma)
         if not_none == 0:
-            self.delta = 0.0
+            self.delta = "0.0"
         elif not_none == 1:
             if delta is not None:
                 self.delta = delta
@@ -149,7 +194,7 @@ class Particles(object):
     def __init__zeta(self, zeta, tau, sigma):
         not_none = count_not_none(zeta, tau, sigma)
         if not_none == 0:
-            self.zeta = 0.0
+            self.zeta = "0.0"
         elif not_none == 1:
             if zeta is not None:
                 self.zeta = zeta
@@ -169,9 +214,9 @@ class Particles(object):
     def __init__chi(self, mratio, qratio, chi):
         not_none = count_not_none(mratio, qratio, chi)
         if not_none == 0:
-            self._chi = 1.0
-            self._mratio = 1.0
-            self._qratio = 1.0
+            self._chi = self._real_type("1.0")
+            self._mratio = self._real_type("1.0")
+            self._qratio = self._real_type("1.0")
         elif not_none == 1:
             raise ValueError(
                 f"""\
@@ -199,13 +244,53 @@ class Particles(object):
             qratio = {qratio}"""
             )
 
+    @staticmethod
+    def __init_attr(val, length, default=0, dtype=np.float64, sep="," ):
+        assert not( dtype is None )
+        is_vector_like = bool( not( length is None ) and length > 0 )
+
+        if val is None:
+            if is_vector_like:
+                ret_val = np.array( [ dtype(default), ] )
+            else:
+                ret_val = dtype(default)
+        elif isinstance(val, str):
+            if sep is not None and sep in val:
+                if is_vector_like:
+                    ret_val = np.fromstring(val, sep=sep, count=length)
+                else:
+                    ret_val = dtype(val.split(sep)[ 0 ])
+            else:
+                val = dtype(val)
+                if is_vector_like:
+                    ret_val = np.zeros(length, dtype=dtype)
+                    ret_val[:] = val
+                else:
+                    ret_val = val
+        else:
+            try:
+                it = iter(val)
+            except TypeError:
+                if is_vector_like:
+                    ret_val = np.zeros(length)
+                    ret_val[:] = dtype(val)
+                else:
+                    ret_val = dtype(val)
+            else:
+                if is_vector_like:
+                    ret_val = np.fromiter(it, count=length, dtype=dtype)
+                else:
+                    ret_val = np.fromiter(it, count=length, dtype=dtype)[ 0 ]
+        return ret_val
+
+
     def __init__(
         self,
-        s=0.0,
-        x=0.0,
-        px=0.0,
-        y=0.0,
-        py=0.0,
+        s="0.0",
+        x="0.0",
+        px="0.0",
+        y="0.0",
+        py="0.0",
         delta=None,
         ptau=None,
         psigma=None,
@@ -213,15 +298,15 @@ class Particles(object):
         zeta=None,
         tau=None,
         sigma=None,
-        mass0=pmass,
-        q0=1.0,
+        mass0=None,
+        q0="1.0",
         p0c=None,
         energy0=None,
         gamma0=None,
         beta0=None,
-        chi=None,
-        mratio=None,
-        qratio=None,
+        chi="1.0",
+        mratio="1.0",
+        qratio="1.0",
         partid=None,
         turn=None,
         state=None,  # ==1 particle lost
@@ -230,50 +315,75 @@ class Particles(object):
         **args,
     ):
 
-        self._m = mathlib
-        self.s = s
-        self.x = x
-        self.px = px
-        self.y = y
-        self.py = py
-        self.zeta = zeta
-        self._mass0 = mass0
-        self.q0 = q0
+        self.__init_mathlib(mathlib=mathlib)
+        length = Particles._check_array_length(
+            x=x,y=y,px=px,py=py,zeta=zeta,mass0=mass0,q0=q0,p0c=p0c,delta=delta)
+        real_t = self._real_type
+        int_t  = self._int_type
+
+        if not( mass0 is None ):
+            mass0 = self.PMASS
+
         self._update_coordinates = False
+        pdb.set_trace()
+        self.s  = Particles.__init_attr(s, length, dtype=real_t )
+        self.x  = Particles.__init_attr(x, length, dtype=real_t )
+        self.px = Particles.__init_attr(px, length, dtype=real_t )
+        self.y  = Particles.__init_attr(y, length, dtype=real_t )
+        self.py = Particles.__init_attr(py, length, dtype=real_t )
+        self.zeta = Particles.__init_attr(zeta, length, dtype=real_t )
+        self._mass0 = Particles.__init_attr(mass0, length, dtype=real_t, default=self.PMASS )
+        self.q0 = Particles.__init_attr(q0, length, dtype=real_t, default=1 )
+
+        if not( length is None ) and length > 1 and partid is None:
+            self.partid = np.arange(length,dtype=int_t)
+        else:
+            self.partid = Particles.__init_attr(partid, length, dtype=int_t )
+        self.turn = Particles.__init_attr(turn, length, dtype=int_t )
+        self.elemid = Particles.__init_attr(elemid, length, dtype=int_t )
+        self.state = Particles.__init_attr(state, length, default=1, dtype=int_t )
+
         self.__init__ref(p0c, energy0, gamma0, beta0)
         self.__init__delta(delta, ptau, psigma)
         self.__init__zeta(zeta, tau, sigma)
         self.__init__chi(chi, mratio, qratio)
-        self._update_coordinates = True
-        length = self._check_array_length()
-        if partid is None:
-            if length is not None:
-                partid = np.arange(length)
-        self.partid = partid
-
-        if turn is None:
-            if length is not None:
-                turn = np.zeros(length)
-        self.turn = turn
-
-        if state is None:
-            if length is not None:
-                state = np.zeros(length)
-        self.state = state
-
         self.lost_particles = []
+        self._update_coordinates = True
 
-    def _check_array_length(self):
-        names = ["x", "px", "y", "py", "zeta", "_mass0", "q0", "p0c"]
+
+    @staticmethod
+    def _check_array_length(dtype=np.float64, sep=',', **kwargs):
+        names = ["x", "px", "y", "py", "zeta", "mass0", "q0", "p0c"]
         length = None
         for nn in names:
-            xx = getattr(self, nn)
-            if hasattr(xx, "__iter__"):
-                if length is None:
-                    length = len(xx)
+            ll = None
+            val = kwargs.get(nn, None)
+            if val is None:
+                if not( length is None ):
+                    length = None
+                    break
                 else:
-                    if length != len(xx):
-                        raise ValueError(f"invalid length len({nn})={len(xx)}")
+                    continue
+
+            if isinstance(val,str):
+                if sep in val:
+                    val = np.fromstring(val,dtype=dtype,sep=sep)
+                    ll = len(val)
+                else:
+                    val = dtype(val)
+            else:
+                try:
+                    it = iter(val)
+                except TypeError:
+                    ll = None
+                else:
+                    ll = len(val)
+
+            if length is None:
+                length = ll
+            elif length != ll:
+                raise ValueError(f"invalid length len({val})={len(val)}")
+            assert ll == length
         return length
 
     Px = property(lambda p: p.px * p.p0c * p.mratio)
@@ -281,7 +391,7 @@ class Particles(object):
     energy = property(lambda p: (p.ptau * p.p0c + p.energy0) * p.mratio)
     pc = property(lambda p: (p.delta * p.p0c + p.p0c) * p.mratio)
     mass = property(lambda p: p.mass0 * p.mratio)
-    beta = property(lambda p: (1 + p.delta) / (1 / p.beta0 + p.ptau))
+    beta = property(lambda p: (p._real_type(1) + p.delta) / (p._real_type(1) / p.beta0 + p.ptau))
     # rvv = property(lambda self: self.beta/self.beta0)
     # rpp = property(lambda self: 1/(1+self.delta))
 
@@ -290,14 +400,16 @@ class Particles(object):
 
     def add_to_energy(self, energy):
         sqrt = self._m.sqrt
+        one = self._real_type(1)
+        two = self._real_type(2)
         oldrvv = self._rvv
         deltabeta0 = self.delta * self.beta0
-        ptaubeta0 = sqrt(deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + 1) - 1
-        ptaubeta0 += energy / self.energy0
+        ptaubeta0 = sqrt(deltabeta0 ** 2 + two * deltabeta0 * self.beta0 + one) - one
+        ptaubeta0 += self._real_type( energy ) / self.energy0
         ptau = ptaubeta0 / self.beta0
-        self._delta = sqrt(ptau ** 2 + 2 * ptau / self.beta0 + 1) - 1
-        self._rvv = (1 + self.delta) / (1 + ptaubeta0)
-        self._rpp = 1 / (1 + self.delta)
+        self._delta = sqrt(ptau ** 2 + two * ptau / self.beta0 + one) - one
+        self._rvv = (one + self.delta) / (one + ptaubeta0)
+        self._rpp =one / (one + self.delta)
         self.zeta *= self._rvv / oldrvv
 
     delta = property(lambda self: self._delta)
@@ -305,42 +417,46 @@ class Particles(object):
     @delta.setter
     def delta(self, delta):
         sqrt = self._m.sqrt
-        self._delta = delta
-        deltabeta0 = delta * self.beta0
-        ptaubeta0 = sqrt(deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + 1) - 1
-        self._rvv = (1 + self.delta) / (1 + ptaubeta0)
-        self._rpp = 1 / (1 + self.delta)
+        one = self._real_type(1)
+        two = self._real_type(2)
+        self._delta = self._real_type(delta)
+        deltabeta0 = self._real_type(delta) * self.beta0
+        ptaubeta0 = sqrt(deltabeta0 ** 2 + two * deltabeta0 * self.beta0 + one) - one
+        self._rvv = (one + self.delta) / (one + ptaubeta0)
+        self._rpp = one / (one + self.delta)
 
     psigma = property(lambda self: self.ptau / self.beta0)
 
     @psigma.setter
     def psigma(self, psigma):
-        self.ptau = psigma * self.beta0
+        self.ptau = self._real_type(psigma) * self.beta0
 
     tau = property(lambda self: self.zeta / self.beta)
 
     @tau.setter
     def tau(self, tau):
-        self.zeta = self.beta * tau
+        self.zeta = self.beta * self._real_type(tau)
 
     sigma = property(lambda self: (self.beta0 / self.beta) * self.zeta)
 
     @sigma.setter
     def sigma(self, sigma):
-        self.zeta = self.beta / self.beta0 * sigma
+        self.zeta = self.beta / self.beta0 * self._real_type(sigma)
 
     @property
     def ptau(self):
         sqrt = self._m.sqrt
+        one = self._real_type(1)
         return (
-            sqrt(self.delta ** 2 + 2 * self.delta + 1 / self.beta0 ** 2)
-            - 1 / self.beta0
-        )
+            sqrt(self.delta ** 2 + self._real_type(2) * self.delta +
+                 one / self.beta0 ** 2) - one / self.beta0 )
 
     @ptau.setter
     def ptau(self, ptau):
         sqrt = self._m.sqrt
-        self.delta = sqrt(ptau ** 2 + 2 * ptau / self.beta0 + 1) - 1
+        one = self._real_type(1)
+        self.delta = sqrt(ptau ** 2 + self._real_type(2) * self._real_type(ptau) /
+                            self.beta0 + one) - one
 
     mass0 = property(lambda self: self._mass0)
 
@@ -398,36 +514,37 @@ class Particles(object):
 
     @qratio.setter
     def qratio(self, qratio):
-        self._qratio = qratio
-        self._chi = qratio / self._mratio
+        self._qratio = self._real_type(qratio)
+        self._chi = self._qratio / self._mratio
 
     chi = property(lambda self: self._chi)
 
     @chi.setter
     def chi(self, chi):
         self._qratio = self._chi * self._mratio
-        self._chi = chi
+        self._chi = self._real_type(chi)
 
     def _get_absolute(self):
         return self.Px, self.Py, self.pc, self.energy
 
     def _update_ref(self, mass0, beta0, gamma0, p0c, energy0):
-        self._mass0 = mass0
-        self._beta0 = beta0
-        self._gamma0 = gamma0
-        self._p0c = p0c
-        self._energy0 = energy0
+        self._mass0 = self._real_type(mass0)
+        self._beta0 = self._real_type(beta0)
+        self._gamma0 = self._real_type(gamma0)
+        self._p0c = self._real_type(p0c)
+        self._energy0 = self._real_type(energy0)
 
     def _update_particles_from_absolute(self, Px, Py, pc, energy):
         if self._update_coordinates:
+            one = self._real_type(1)
             mratio = self.mass / self.mass0
-            norm = mratio * self.p0c
+            norm = self._real_type(mratio) * self.p0c
             self._mratio = mratio
             self._chi = self._qratio / mratio
-            self._ptau = energy / norm - 1
-            self._delta = pc / norm - 1
-            self.px = Px / norm
-            self.py = Py / norm
+            self._ptau = energy / norm - one
+            self._delta = pc / norm - one
+            self.px = self._real_type(Px) / norm
+            self.py = self._real_type(Py) / norm
 
     def __repr__(self):
         out = f"""\
@@ -470,7 +587,7 @@ class Particles(object):
     def remove_lost_particles(self, keep_memory=True):
 
         if hasattr(self.state, "__iter__"):
-            mask_valid = self.state == 1
+            mask_valid = self.state == self._int_type(1)
 
             if np.any(~mask_valid):
                 if keep_memory:
