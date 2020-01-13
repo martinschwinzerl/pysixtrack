@@ -3,7 +3,6 @@ from typing import List, Dict
 
 _function = type(lambda: None)
 
-
 def _pro_default(default):
     type_default = type(default)
     if type_default is _function:
