@@ -3,13 +3,14 @@ from typing import List, Dict
 
 _function = type(lambda: None)
 
+
 def _pro_default(default):
     type_default = type(default)
     if type_default is _function:
         mut = default()
-        if type(mut) is list:
+        if isinstance(mut, list):
             return List, field(default_factory=default)
-        elif type(mut) is dict:
+        elif isinstance(mut, dict):
             return Dict, field(default_factory=default)
     elif type_default in [list, dict]:
         raise ValueError(f"Mutable default {default} not allowed")
