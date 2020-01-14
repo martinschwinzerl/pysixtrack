@@ -46,33 +46,44 @@ def _find_attr_length(sep=',', **kwargs):
 
 def _make_attr(value, length, dtype, as_vec, default=0, sep=','):
     assert not(dtype is None)
-    ret_val = None
-    if value is None:
-        ret_val = as_vec and np.array([dtype(default)]) or dtype(default)
-    elif isinstance(value, str):
+    assert not as_vec or (not(length is None) and length > 0)
+    ret_val = as_vec and np.full(length, dtype(
+        default), dtype=dtype) or dtype(default)
+
+    if isinstance(value, str):
         if sep is not None and sep in value:
-            ret_val = as_vec and np.fromstring(
-                value, sep=sep, count=length, dtype=dtype) or dtype(
-                value.split(sep)[0])
-        else:
-            value = dtype(value)
             if as_vec:
-                ret_val = np.zeros(length, dtype=dtype)
-                ret_val[:] = value
+                _temp = np.fromstring(value, sep=sep, dtype=dtype)
+                _temp_len = len(_temp)
+                if _temp_len <= length:
+                    ret_val[0:_temp_len] = _temp[:]
+                else:
+                    ret_val[:] = _temp[0:length]
             else:
-                ret_val = value
-    else:
+                ret_val = dtype(value.split(sep)[0])
+        else:
+            if as_vec:
+                ret_val[:] = dtype(value)
+            else:
+                ret_val = dtype(value)
+    elif not(value is None):
         try:
             it = iter(value)
         except TypeError:
             if as_vec:
-                ret_val = np.zeros(length, dtype=dtype)
                 ret_val[:] = dtype(value)
             else:
                 ret_val = dtype(value)
         else:
-            ret_val = as_vec and np.fromiter(it, count=length, dtype=dtype) \
-                or np.fromiter(it, count=length, dtype=dtype)[0]
+            _temp = np.fromiter(it, dtype=dtype)
+            _temp_len = len(_temp)
+            if as_vec:
+                if _temp_len <= length:
+                    ret_val[0:_temp_len] = _temp[:]
+                else:
+                    ret_val[:] = _temp[0:length]
+            elif _temp_len > 0:
+                ret_val = _temp[0]
     return ret_val
 
 
