@@ -328,16 +328,13 @@ def setup_spacecharge_bunched_in_line(
     sc_elements,
     sc_lengths,
     sc_twdata,
-    p0c,
-    mass,
+    betagamma,
     number_of_particles,
     bunchlength_rms,
     delta_rms,
     neps_x,
     neps_y,
 ):
-
-    betagamma = p0c / mass
 
     for ii, ss in enumerate(sc_elements):
 
@@ -361,15 +358,12 @@ def setup_spacecharge_coasting_in_line(
     sc_elements,
     sc_lengths,
     sc_twdata,
-    p0c,
-    mass,
+    betagamma,
     line_density,
     delta_rms,
     neps_x,
     neps_y,
 ):
-
-    betagamma = p0c / mass
 
     for ii, ss in enumerate(sc_elements):
 

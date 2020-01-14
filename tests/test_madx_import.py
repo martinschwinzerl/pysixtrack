@@ -20,7 +20,9 @@ def test_madx_import():
     n_SCkicks = 120
     length_fuzzy = 0.0
     p0c = 0.571e6
-    mass = pysixtrack.Particles.pmass
+    particle = pysixtrack.Particles(p0c=p0c)
+    betagamma = particle.beta0 * particle.gamma0
+    # mass = pysixtrack.Particles.pmass
     delta_rms = 1e-3
     neps_x = 1.5e-6
     neps_y = 1.5e-6
@@ -85,8 +87,7 @@ def test_madx_import():
                 sc_elements,
                 sc_lengths,
                 sc_twdata,
-                p0c,
-                mass,
+                betagamma,
                 number_of_particles,
                 bunchlength_rms,
                 delta_rms,
@@ -98,8 +99,7 @@ def test_madx_import():
                 sc_elements,
                 sc_lengths,
                 sc_twdata,
-                p0c,
-                mass,
+                betagamma,
                 line_density,
                 delta_rms,
                 neps_x,
