@@ -37,7 +37,7 @@ class Line(Element):
 
     def append_line(self, line):
         # Append the elements
-        if type(line) is Line:
+        if isinstance(line, Line):
             # got a pysixtrack line
             self.elements += line.elements
         else:
