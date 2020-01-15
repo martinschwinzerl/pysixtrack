@@ -16,17 +16,37 @@ class MathlibDefault(object):
     anumber = property(lambda: np.float_(6.02214129e23))
     kbolz = property(lambda: np.float_(1.3806488e-23))
     epsilon0 = property(lambda: np.float_(8.854187817e-12))
-    mu0 = property(lambda: np.float(4e-7) * np.pi)
+    mu0 = property(lambda: np.float_(4e-7) * np.pi)
 
     @property
     def eradius(self):
-        return self.echarge * self.echarge / \
-            (4 * self.pi * self.epsilon0 * self.emass * self.clight * self.clight)
+        return (
+            self.echarge
+            * self.echarge
+            / (
+                4
+                * self.pi
+                * self.epsilon0
+                * self.emass
+                * self.clight
+                * self.clight
+            )
+        )
 
     @property
     def pradius(self):
-        return self.echarge * self.echarge / \
-            (4 * self.pi * self.epsilon0 * self.pmass * self.clight * self.clight)
+        return (
+            self.echarge
+            * self.echarge
+            / (
+                4
+                * self.pi
+                * self.epsilon0
+                * self.pmass
+                * self.clight
+                * self.clight
+            )
+        )
 
     @staticmethod
     def wfun(z_re, z_im):
