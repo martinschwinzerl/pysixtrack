@@ -9,6 +9,7 @@ from .particles import Particles
 
 from .be_beamfields import BB6Ddata
 from .loader_mad import MadPoint, mad_benchmark
+from .mpmath import MpMathLib
 
 __all__ = [
     "base_classes",
