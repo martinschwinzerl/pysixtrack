@@ -667,31 +667,65 @@ class Particles(object):
         return cls(**dct)
 
     def compare(self, particle, rel_tol=1e-6, abs_tol=1e-15):
+        if (
+            particle.is_vector != self.is_vector
+            or particle.num_particles != self.num_particles
+        ):
+            return False
+
         res = True
-        for kk in self._dict_vars:
-            v1 = getattr(self, kk)
-            v2 = getattr(particle, kk)
-            if v1 is not None and v2 is not None:
-                diff = v1 - v2
-                if hasattr(diff, "__iter__"):
-                    for nn in range(len(diff)):
-                        vv1 = v1[nn] if hasattr(v1, "__iter__") else v1
-                        vv2 = v2[nn] if hasattr(v2, "__iter__") else v2
-                        if abs(diff[nn]) > abs_tol:
-                            print(f"{kk}[{nn}] {vv1} {vv2}  diff:{diff[nn]}")
-                            res = False
-                        if abs(vv1) > 0 and abs(diff[nn]) / vv1 > rel_tol:
-                            print(
-                                f"{kk}[{nn}] {vv1} {vv2} rdiff:{diff[nn]/vv1}"
-                            )
-                            res = False
+        num_compared = 0
+        abs = self._m.abs
+
+        _int_fields = ("partid", "turn", "elemid", "state")
+        _real_fields = (kk for kk in self._dict_vars if kk not in _int_fields)
+
+        for kk in _real_fields:
+            lhs = getattr(self, kk)
+            rhs = getattr(particle, kk)
+            if lhs is not None and rhs is not None:
+                num_compared += 1
+                if self.is_vector:
+                    if not np.allclose(lhs, rhs, rtol=rel_tol, atol=abs_tol):
+                        print(
+                            f"""
+                            {kk}[self.num_particles]
+                                lhs : {lhs}
+                                rhs : {rhs}
+                                diff: {lhs - rhs}
+                            """
+                        )
+                        res = False
                 else:
-                    if abs(diff) > abs_tol:
-                        print(f"{kk} {v1} {v2}  diff:{diff}")
+                    d = self._m.abs(d)
+                    max_attr = lhs > rhs and lhs or rhs
+                    if d > abs_tol or d > rel_tol * self._m.abs(max_attr):
+                        print(f"{kk} | {lhs} - {rhs} | = {d}")
                         res = False
-                    if abs(v1) > 0 and abs(diff) / v1 > rel_tol:
-                        print(f"{kk} {v1} {v2} rdiff:{diff/v1}")
+
+        for kk in _int_fields:
+            lhs = getattr(self, kk)
+            rhs = getattr(particle, kk)
+            if lhs is not None and rhs is not None:
+                num_compared += 1
+                if self.is_vector:
+                    if not np.array_equal(lhs, rhs):
                         res = False
+                        print(
+                            f"""
+                            {kk}[self.num_particles] ::
+                                lhs : {lhs}
+                                rhs : {rhs}
+                                diff: {lhs - rhs}
+                            """
+                        )
+                elif lhs != rhs:
+                    res = False
+                    print(f"{kk} :: {lhs} ! {rhs}")
+
+        if num_compared == 0 and res:
+            res = False
+
         return res
 
     @classmethod
