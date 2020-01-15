@@ -120,16 +120,16 @@ def _make_attr(value, length, dtype, as_vec, default=0, sep=","):
                 ret_val[:] = dtype(value)
             else:
                 ret_val = dtype(value)
-    elif not(value is None):
+    elif not (value is None):
         try:
-            it = iter(value)
+            it_range = iter(value)
         except TypeError:
             if as_vec:
                 ret_val[:] = dtype(value)
             else:
                 ret_val = dtype(value)
         else:
-            _temp = np.fromiter(it, dtype=dtype)
+            _temp = np.array([dtype(it) for it in it_range], dtype=dtype)
             _temp_len = len(_temp)
             if as_vec:
                 if _temp_len <= length:
@@ -728,16 +728,35 @@ class Particles(object):
             py=tracksumm.py[:],
             tau=tracksumm.t[:],
             ptau=tracksumm.pt[:],
-            mathlib=mathlib
+            mathlib=mathlib,
         )
         return out
 
     @classmethod
-    def from_list(cls, lst, mathlib=MathlibDefault):
+    def from_list(cls, lst, mathlib=MathlibDefault, always_vec=False):
+        _fields_int = ("partid", "turn", "elemid", "state")
+        _fields_real = (kk for kk in cls._dict_vars if kk not in _fields_int)
         ll = len(lst)
-        dct = {nn: np.zeros(ll, dtype=mathlib.real_type)
-               for nn in cls._dict_vars}
+        is_vec = ll > 1 or always_vec
+        dct = {
+            nn: _make_attr(0, ll, mathlib.real_type, is_vec)
+            for nn in _fields_real
+        }
+
+        dct.update(
+            {
+                nn: _make_attr(0, ll, mathlib.int_type, is_vec)
+                for nn in _fields_int
+            }
+        )
+
         for ii, pp in enumerate(lst):
-            for nn in cls._dict_vars:
-                dct[nn][ii] = getattr(pp, nn, 0)
-        return cls(**dct)
+            if is_vec:
+                for nn in cls._dict_vars:
+                    dct[nn][ii] = getattr(pp, nn, 0)
+            else:
+                for nn in _fields_real:
+                    dct[nn] = mathlib.real_type(getattr(pp, nn))
+                for nn in _fields_int:
+                    dct[nn] = mathlib.int_type(getattr(pp, nn))
+        return cls(**dct, mathlib=mathlib)
