@@ -1,5 +1,4 @@
 import numpy as np
-from .particles import _make_attr
 
 from .base_classes import Element
 from .be_beamfields.beambeam import BeamBeam4D
@@ -40,7 +39,7 @@ class Drift(Element):
     _description = [("length", "m", "Length of the drift", 0)]
 
     def track(self, p):
-        length = p._m.real_type(self.length)
+        length = self.length
         rpp = p.rpp
         xp = p.px * rpp
         yp = p.py * rpp
@@ -56,13 +55,25 @@ class DriftExact(Drift):
     _description = [("length", "m", "Length of the drift", 0)]
 
     def track(self, p):
-        length = p._m.real_type(self.length)
+        sqrt = p._m.sqrt
+        length = self.length
         opd = 1 + p.delta
-        lpzi = length / p._m.sqrt(opd * opd - p.px ** 2 - p.py ** 2)
+        lpzi = length / sqrt(opd * opd - p.px ** 2 - p.py ** 2)
         p.x += p.px * lpzi
         p.y += p.py * lpzi
         p.zeta += p.rvv * length - opd * lpzi
         p.s += length
+
+
+def _arrayofsize(ar, size, dtype=None):
+    if dtype is None:
+        dtype = ar.dtype
+    ar = np.array(ar, dtype=dtype)
+    if len(ar) == 0:
+        return np.zeros(size, dtype=dtype)
+    elif len(ar) < size:
+        ar = np.hstack([ar, np.zeros(size - len(ar), dtype=dtype)])
+    return ar
 
 
 class Multipole(Element):
@@ -102,16 +113,13 @@ class Multipole(Element):
         return max(len(self.knl), len(self.ksl)) - 1
 
     def track(self, p):
-        real_t = p._m.real_type
-        ZERO = real_t(0)
-        order = real_t(self.order)
-        length = real_t(self.length)
-        hxl = real_t(self.hxl)
-        hyl = real_t(self.hyl)
+        order = self.order
+        length = self.length
+        hxl = self.hxl
+        hyl = self.hyl
+        knl = _arrayofsize(self.knl, order + 1)
+        ksl = _arrayofsize(self.ksl, order + 1)
 
-        always_vec = True
-        knl = _make_attr(self.knl, order + 1, real_t, always_vec)
-        ksl = _make_attr(self.ksl, order + 1, real_t, always_vec)
         x = p.x
         y = p.y
         chi = p.chi
@@ -126,7 +134,7 @@ class Multipole(Element):
         dpy = chi * dpy
 
         # curvature effect kick
-        if hxl > ZERO or hyl > ZERO:
+        if hxl > 0 or hyl > 0:
             b1l = chi * knl[0]
             a1l = chi * ksl[0]
             hxlx = hxl * x
@@ -135,8 +143,8 @@ class Multipole(Element):
                 hxx = hxlx / length
                 hyy = hyly / length
             else:  # non physical weak focusing disabled (SixTrack mode)
-                hxx = ZERO
-                hyy = ZERO
+                hxx = 0
+                hyy = 0
             dpx += hxl + hxl * p.delta - b1l * hxx
             dpy -= hyl + hyl * p.delta - a1l * hyy
             p.zeta -= chi * (hxlx - hyly)
@@ -168,34 +176,30 @@ class RFMultipole(Element):
         return max(len(self.knl), len(self.ksl)) - 1
 
     def track(self, p):
-        real_t = p._m.real_type
-        ZERO = real_t(0)
-        PI = pi = p._m.pi
-        DEG2RAD = PI / 180
-        sin = p._m.sin
+        pi = p._m.pi
+        c_light = p._m.clight
         cos = p._m.cos
-
-        order = real_t(self.order)
-        voltage = real_t(self.voltage)
-        lag = real_t(self.lag)
-
-        k = 2 * PI * self.frequency / p._m.clight
+        sin = p._m.sin
+        order = self.order
+        k = 2 * pi * self.frequency / c_light
         tau = p.zeta / p.rvv / p.beta0
         ktau = k * tau
 
-        always_vec = True
-        knl = _make_attr(self.knl, order + 1, real_t, always_vec)
-        ksl = _make_attr(self.ksl, order + 1, real_t, always_vec)
-        pn = _make_attr(self.pn, order + 1, real_t, always_vec) * DEG2RAD
-        ps = _make_attr(self.ps, order + 1, real_t, always_vec) * DEG2RAD
+        knl = _arrayofsize(self.knl, order + 1)
+        ksl = _arrayofsize(self.ksl, order + 1)
+        pn = _arrayofsize(self.pn, order + 1)
+        ps = _arrayofsize(self.ps, order + 1)
+
+        pn *= pi / 180
+        ps *= pi / 180
 
         x = p.x
         y = p.y
-        dpx = ZERO
-        dpy = ZERO
-        dptr = ZERO
-        zre = p._m.real_type(1)
-        zim = ZERO
+        dpx = 0.0
+        dpy = 0.0
+        dptr = 0.0
+        zre = 1.0
+        zim = 0.0
         for ii in range(order + 1):
             pn_ii = pn[ii] - ktau
             ps_ii = ps[ii] - ktau
@@ -219,7 +223,7 @@ class RFMultipole(Element):
 
         p.px += -p.chi * dpx
         p.py += p.chi * dpy
-        dv0 = voltage * sin(lag * DEG2RAD - ktau)
+        dv0 = self.voltage * sin(self.lag * pi / 180 - ktau)
         p.add_to_energy(p.charge * (dv0 - p.pc0 * k * dptr))
 
 
@@ -233,11 +237,14 @@ class Cavity(Element):
     ]
 
     def track(self, p):
-        real_t = p._m.real_type
-        k = 2 * p._m.pi * real_t(self.frequency) / p._m.clight
+        pi = p._m.pi
+        c_light = p._m.clight
+        sin = p._m.sin
+
+        k = 2 * pi * self.frequency / c_light
         tau = p.zeta / p.rvv / p.beta0
-        phase = real_t(self.lag) * p._m.pi / 180 - k * tau
-        p.add_to_energy(p.charge * real_t(self.voltage) * p._m.sin(phase))
+        phase = self.lag * pi / 180 - k * tau
+        p.add_to_energy(p.charge * self.voltage * sin(phase))
 
 
 class SawtoothCavity(Element):
@@ -250,14 +257,14 @@ class SawtoothCavity(Element):
     ]
 
     def track(self, p):
-        real_t = p._m.real_type
-        PI = p._m.pi
+        pi = p._m.pi
+        c_light = p._m.clight
 
-        k = 2 * PI * real_t(self.frequency) / p._m.clight
+        k = 2 * pi * self.frequency / c_light
         tau = p.zeta / p.rvv / p.beta0
-        phase = real_t(self.lag) * PI / 180 - k * tau
-        phase = (phase + PI) % (2 * PI) - PI
-        p.add_to_energy(p.charge * real_t(self.voltage) * phase)
+        phase = self.lag * pi / 180 - k * tau
+        phase = (phase + pi) % (2 * pi) - pi
+        p.add_to_energy(p.charge * self.voltage * phase)
 
 
 class XYShift(Element):
@@ -269,8 +276,8 @@ class XYShift(Element):
     ]
 
     def track(self, p):
-        p.x -= p._m.real_type(self.dx)
-        p.y -= p._m.real_type(self.dy)
+        p.x -= self.dx
+        p.y -= self.dy
 
 
 class SRotation(Element):
@@ -279,10 +286,12 @@ class SRotation(Element):
     _description = [("angle", "", "Rotation angle", 0)]
 
     def track(self, p):
-        DEG2RAD = p._m.pi / 180
-        angle_rad = p._m.real_type(self.angle) * DEG2RAD
-        cz = p._m.cos(angle_rad)
-        sz = p._m.sin(angle_rad)
+        pi = p._m.pi
+        cos = p._m.cos
+        sin = p._m.sin
+        angle_rad = self.angle * pi / 180
+        cz = cos(angle_rad)
+        sz = sin(angle_rad)
         xn = cz * p.x + sz * p.y
         yn = -sz * p.x + cz * p.y
         p.x = xn
@@ -302,27 +311,26 @@ class LimitRect(Element):
     ]
 
     def track(self, particle):
-
-        real_t = particle._m.real_type
         x = particle.x
         y = particle.y
 
-        new_state = (particle.state) & \
-            (x >= real_t(self.min_x)) & (x <= real_t(self.max_x)) & \
-            (y >= real_t(self.min_y)) & (y <= real_t(self.max_y))
+        new_state = (
+            particle.state
+            & (x >= self.min_x)
+            & (x <= self.max_x)
+            & (y >= self.min_y)
+            & (y <= self.max_y)
+        )
 
-        has_particles_left = particle.num_particles > 0
-
-        if particle.is_vector:
-            if particle.state != new_state:
+        if new_state != particle.state:
+            if particle.is_vector:
                 particle.state[:] = new_state[:]
-                particle.remove_lost_particles()
-                has_particles_left = particle.num_particles > 0
-        elif particle.state == particle._m.int_type(0):
-            has_particles_left = False
+            else:
+                particle.state = new_state
+            particle.remove_lost_particles()
 
-        if not has_particles_left:
-            return "All particles lost"
+            if particle.num_particles == 0:
+                return "All particles lost"
 
 
 class LimitEllipse(Element):
@@ -332,27 +340,23 @@ class LimitEllipse(Element):
     ]
 
     def track(self, particle):
-        real_t = particle._m.real_type
-        x_squ = particle.x * particle.x
-        y_squ = particle.y * particle.y
-        a_squ = real_t(self.a) * real_t(self.a)
-        b_squ = real_t(self.b) * real_t(self.b)
+        x = particle.x
+        y = particle.y
+        a = self.a
+        b = self.b
 
-        new_state = (particle.state) & \
-            ((x_squ / a_squ + y_squ / b_squ) <= real_t(1))
+        new_state = particle.state & (
+            (x * x) / (a * a) + (y * y) / (b * b) <= 1.0
+        )
 
-        has_particles_left = particle.num_particles > 0
-
-        if particle.is_vector:
-            if particle.state != new_state:
+        if new_state != particle.state:
+            if particle.is_vector:
                 particle.state[:] = new_state[:]
-                particle.remove_lost_particles()
-                has_particles_left = particle.num_particles > 0
-        elif particle.state == particle._m.int_type(0):
-            has_particles_left = False
-
-        if not has_particles_left:
-            return "All particles lost"
+            else:
+                particle.state = new_state
+            particle.remove_lost_particles()
+            if particle.num_particles == 0:
+                return "All particles lost"
 
 
 class LimitRectEllipse(Element):
@@ -364,31 +368,31 @@ class LimitRectEllipse(Element):
     ]
 
     def track(self, particle):
-        real_t = particle._m.real_type
         x = particle.x
         y = particle.y
-        a_squ = real_t(self.a) * real_t(self.a)
-        b_squ = real_t(self.b) * real_t(self.b)
-        x_limit = real_t(self.max_x)
-        y_limit = real_t(self.max_y)
+        x_limit = self.max_x
+        y_limit = self.max_y
+        a = self.a
+        b = self.b
 
-        new_state = (particle.state) & \
-            (x >= -x_limit) & (x <= x_limit) & \
-            (y >= -y_limit) & (y <= y_limit) & \
-            (((x * x) / a_squ + (y * y) / b_squ) <= real_t(1))
+        new_state = (
+            particle.state
+            & (x >= -x_limit)
+            & (x <= x_limit)
+            & (y >= -y_limit)
+            & (y <= y_limit)
+            & ((x * x) / (a * a) + (y * y) / (b * b))
+            <= 1
+        )
 
-        has_particles_left = particle.num_particles > 0
-
-        if particle.is_vector:
-            if particle.state != new_state:
+        if new_state != particle.state:
+            if particle.is_vector:
                 particle.state[:] = new_state[:]
-                particle.remove_lost_particles()
-                has_particles_left = particle.num_particles > 0
-        elif particle.state == particle._m.int_type(0):
-            has_particles_left = False
-
-        if not has_particles_left:
-            return "All particles lost"
+            else:
+                particle.state = new_state
+            particle.remove_lost_particles()
+            if particle.num_particles == 0:
+                return "All particles lost"
 
 
 class BeamMonitor(Element):
@@ -445,15 +449,14 @@ class DipoleEdge(Element):
     ]
 
     def track(self, p):
-        real_t = p._m.real_type
-        h = real_t(self.h)
-        hgap = real_t(self.hgap)
-        fint = real_t(self.fint)
-        e1 = real_t(self.e1)
-
-        corr = 2 * h * hgap * fint
-        r21 = h * p._m.tan(e1)
-        r43 = -h * p._m.tan(e1 - corr / p._m.cos(e1) * (1 + p._m.sin(e1) ** 2))
+        cos = p._m.cos
+        sin = p._m.sin
+        tan = p._m.tan
+        cor = 2 * self.h * self.hgap * self.fint
+        r21 = +self.h * tan(self.e1)
+        r43 = -self.h * tan(
+            self.e1 - cor / cos(self.e1) * (1 + sin(self.e1) ** 2)
+        )
         p.px += r21 * p.x
         p.py += r43 * p.y
 
