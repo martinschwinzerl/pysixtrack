@@ -1,12 +1,33 @@
 import numpy as np
 from .mathlibs import MathlibDefault
 
-
 def count_not_none(*lst):
     return len(lst) - sum(p is None for p in lst)
 
 
-def _find_attr_length(sep=',', **kwargs):
+def _find_attr_length(sep=",", **kwargs):
+    """Estimates the attribute size from an iterable list of key-value pairs
+
+    Keyword arguments:
+    sep -- separator for string-valued arguments (default ',')
+    kwargs -- all the key - value pairs that should be considered
+
+    The following cases for values are handled:
+    * a string valued value containing the separator is interpreted as a
+      vector of length >= 1
+    * a string valued value without separator is interpreted as a scalar
+    * iterable values contribute the number of elements in the range
+    * everything else is considered a scalar
+
+    Returns:
+    The number of elements required in each attribute, None in case of
+    inconsistencies / errors
+
+    Throws:
+    If non-scalar (i.e. length > 1) values differ in their size, an instance
+    of ValueError is thrown
+
+    """
     length = None
     has_processed_any = False
 
@@ -44,11 +65,42 @@ def _find_attr_length(sep=',', **kwargs):
     return length
 
 
-def _make_attr(value, length, dtype, as_vec, default=0, sep=','):
-    assert not(dtype is None)
-    assert not as_vec or (not(length is None) and length > 0)
-    ret_val = as_vec and np.full(length, dtype(
-        default), dtype=dtype) or dtype(default)
+def _make_attr(value, length, dtype, as_vec, default=0, sep=","):
+    """Creates an attribute (either a scalar or a numpy array)
+
+    Keyword arguments:
+    value   -- the input value; can be a scalar, an iterable object,
+               a string or a separated list encoded in a string
+    length  -- the requested length of the attribute, has to an integer >= 1
+    dtype   -- numpy.dtype instance describing the storage type for the
+               vector attribute or any type that can be used for casting scalar
+               attributes
+    as_vec  -- boolean flag indicating whether the attribute should be a
+               vector or a scalar; note that length > 1 requires as_vec to be
+               True but length == 1 and as_vec == True is legal as well
+    default -- default value, used in case the value is None or if
+               the number of provided elements is smaller than the requeisted
+               length of the attribute to fill it
+    sep     -- separator string used to parse string-valued concatenated lists
+               of elements
+
+    Returns:
+    Either a scalar attribute (requiring length == 1, as_vec = False) or a
+    vector valued attribute with length entries of type dtype, filled with
+    values taken from value (or default, in case a not sufficiant number of
+    elements can be taken from value)
+
+    Throws:
+    Nothing
+
+    """
+    assert not (dtype is None)
+    assert not as_vec or (not (length is None) and length > 0)
+    ret_val = (
+        as_vec
+        and np.full(length, dtype(default), dtype=dtype)
+        or dtype(default)
+    )
 
     if isinstance(value, str):
         if sep is not None and sep in value:
