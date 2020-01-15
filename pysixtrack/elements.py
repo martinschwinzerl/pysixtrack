@@ -479,3 +479,33 @@ __all__ = [
     "SpaceChargeCoasting",
     "XYShift",
 ]
+
+# =============================================================================
+
+
+def element_change_type(
+    elem, real_type=np.float64, int_type=np.int64, keepextra=False
+):
+    if isinstance(
+        elem,
+        (
+            Drift,
+            DriftExact,
+            Multipole,
+            RFMultipole,
+            Cavity,
+            SawtoothCavity,
+            XYShift,
+            SRotation,
+            DipoleEdge,
+            LimitEllipse,
+            LimitRect,
+            LimitRectEllipse,
+        ),
+    ):
+        elem.change_all_fields_type(real_type, keepextra=keepextra)
+    elif isinstance(elem, BeamMonitor):
+        _no_cast_for = ("is_rolling", "is_turn_ordered", "data")
+        elem.change_all_fields_type(
+            int_type, keepextra=keepextra, exclude_fields=_no_cast_for
+        )

@@ -35,6 +35,23 @@ class Line(Element):
         self.element_names = dct["element_names"]
         return self
 
+    # NOTE: By overriding change_field_type, we should disable also
+    #      disable change_all_fields_type -> check whether we can move this
+    #      methods somewhere else apart from the base-class of Line!
+    def change_field_type(self, fname, dtype):
+        pass
+
+    def change_types(
+        self, real_type=np.float64, int_type=np.int64, keepextra=False
+    ):
+        for elem in self.elements:
+            elements.element_change_type(
+                elem,
+                real_type=real_type,
+                int_type=int_type,
+                keepextra=keepextra,
+            )
+
     def append_line(self, line):
         # Append the elements
         if isinstance(line, Line):
