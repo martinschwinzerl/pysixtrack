@@ -211,13 +211,13 @@ class Particles(object):
         return self._g1(mass0, pc0, energy0)
 
     def _f3(self, mass0, beta0):
-        gamma0 = self._one / self._m.sqrt(self._one - beta0 * beta0)
+        gamma0 = 1 / self._m.sqrt(1 - beta0 * beta0)
         return self._g2(mass0, beta0, gamma0)
 
     def _f4(self, mass0, gamma0):
         gamma0 = self._make_attr(gamma0)
         mass0 = self._make_attr(mass0, default=self._m.pmass)
-        beta0 = self._m.sqrt(self._one - self._one / gamma0 * gamma0)
+        beta0 = self._m.sqrt(1 - 1 / gamma0 * gamma0)
         return self._g2(mass0, beta0, gamma0)
 
     def copy(self, index=None):
@@ -331,38 +331,36 @@ class Particles(object):
             _qratio = self._make_attr(qratio)
             _chi = self._make_attr(chi)
 
-            abs_tol = self._m.real_type("1e-12")
-            rel_tol = self._m.real_type("1e-10")
-
-            is_consistent = False
+            abs_tol = 1e-12
+            rel_tol = 1e-10
 
             if self.is_vector:
                 is_consistent = np.allclose(
-                    _chi, _qratio / _mratio, rel_tol=rel_tol, abs_tol=abs_tol)
+                    _chi, _qratio / _mratio, rel_tol=rel_tol, abs_tol=abs_tol
+                )
             else:
-                diff = _chi - _qratio / _mratio
-                if diff < self._m.real_type(0):
-                    diff = -diff
+                diff = self._m.abs(_chi - _qratio / _mratio)
                 is_consistent = diff <= abs_tol and diff * _chi <= rel_tol
 
-            if is_consistent:
+            if not self.is_vector and is_consistent or np.all(is_consistent):
                 self._chi = _chi
                 self._mratio = _mratio
                 self._qratio = _qratio
             else:
                 raise ValueError(
-                    f""" Particles defined with multiple mass/charge information:
+                    f""" Particles defined with multiple mass/charge info:
                     chi    = {chi},
                     mratio = {mratio},
-                    qratio = {qratio}""")
+                    qratio = {qratio}"""
+                )
 
     def __init__(
         self,
-        s="0.0",
-        x="0.0",
-        px="0.0",
-        y="0.0",
-        py="0.0",
+        s=0,
+        x=0,
+        px=0,
+        y=0,
+        py=0,
         delta=None,
         ptau=None,
         psigma=None,
@@ -376,9 +374,9 @@ class Particles(object):
         energy0=None,
         gamma0=None,
         beta0=None,
-        chi="1.0",
-        mratio="1.0",
-        qratio="1.0",
+        chi=1,
+        mratio=1,
+        qratio=1,
         partid=None,
         turn=0,
         state=1,  # ==1 particle lost
@@ -397,12 +395,11 @@ class Particles(object):
             mass0=mass0,
             charge0=charge0,
             pc0=pc0,
-            delta=delta)
+            delta=delta,
+        )
 
-        self._is_vector = not(length is None) and length > 1
-        self._nparticles = not(length is None) and length or 0
-        self._one = self._make_attr(1)
-
+        self._is_vector = not (length is None) and length > 1
+        self._nparticles = not (length is None) and length or 0
         self._update_coordinates = False
         self.s = self._make_attr(s)
         self.x = self._make_attr(x)
@@ -437,7 +434,7 @@ class Particles(object):
 
     @property
     def beta(self):
-        return (self._one + self.delta) / (self._one / self.beta0 + self.tau)
+        return (1 + self.delta) / (1 / self.beta0 + self.tau)
 
     rvv = property(lambda self: self._rvv)
     rpp = property(lambda self: self._rpp)
@@ -445,30 +442,27 @@ class Particles(object):
     is_vector = property(lambda self: self._is_vector and self._nparticles > 0)
 
     def add_to_energy(self, energy):
+        sqrt = self._m.sqrt
         oldrvv = self._rvv
         deltabeta0 = self.delta * self.beta0
-        ptaubeta0 = self._m.sqrt(deltabeta0 ** 2 + 2 * deltabeta0 *
-                                 self.beta0 + self._one) - self._one
-        ptaubeta0 += self._make_attr(energy) / self.energy0
+        ptaubeta0 = sqrt(deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + 1) - 1
+        ptaubeta0 += energy / self.energy0
         ptau = ptaubeta0 / self.beta0
-        self._delta = self._m.sqrt(
-            ptau ** 2 + 2 * ptau / self.beta0 + self._one) - self._one
-        one_plus_delta = self._one + self._delta
-        self._rvv = one_plus_delta / (self._one + ptaubeta0)
-        self._rpp = self._one / one_plus_delta
+        self._delta = sqrt(ptau ** 2 + 2 * ptau / self.beta0 + 1) - 1
+        self._rvv = (1 + self._delta) / (1 + ptaubeta0)
+        self._rpp = 1 / (1 + self._delta)
         self.zeta *= self._rvv / oldrvv
 
     delta = property(lambda self: self._delta)
 
     @delta.setter
     def delta(self, delta):
+        sqrt = self._m.sqrt
         self._delta = self._make_attr(delta)
         deltabeta0 = self._delta * self.beta0
-        ptaubeta0 = self._m.sqrt(
-            deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + self._one) - self._one
-        one_plus_delta = self._one + self._delta
-        self._rvv = one_plus_delta / (self._one + ptaubeta0)
-        self._rpp = self._one / one_plus_delta
+        ptaubeta0 = sqrt(deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + 1) - 1
+        self._rvv = (1 + self._delta) / (1 + ptaubeta0)
+        self._rpp = 1 / (1 + self._delta)
 
     psigma = property(lambda self: self.ptau / self.beta0)
 
@@ -490,20 +484,22 @@ class Particles(object):
 
     @property
     def ptau(self):
-        return self._m.sqrt(self._delta ** 2 + 2 * self._delta +
-                            self._one / (self.beta0 ** 2)) - self._one / self.beta0
+        return (
+            self._m.sqrt(
+                self._delta ** 2 + 2 * self._delta + 1 / (self.beta0 ** 2)
+            )
+            - 1 / self.beta0
+        )
 
     @ptau.setter
     def ptau(self, ptau):
+        sqrt = self._m.sqrt
         ptau = self._make_attr(ptau)
-        self._delta = self._m.sqrt(
-            ptau ** 2 + 2 * ptau / self.beta0 + self._one) - self._one
+        self._delta = sqrt(ptau ** 2 + 2 * ptau / self.beta0 + 1) - 1
         deltabeta0 = self._delta * self.beta0
-        ptaubeta0 = self._m.sqrt(
-            deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + self._one) - self._one
-        one_plus_delta = self._one + self._delta
-        self._rvv = one_plus_delta / (self._one + ptaubeta0)
-        self._rpp = self._one / one_plus_delta
+        ptaubeta0 = sqrt(deltabeta0 ** 2 + 2 * deltabeta0 * self.beta0 + 1) - 1
+        self._rvv = (1 + self._delta) / (1 + ptaubeta0)
+        self._rpp = 1 / (1 + self._delta)
 
     mass0 = property(lambda self: self._mass0)
 
@@ -588,8 +584,8 @@ class Particles(object):
             norm = mratio * self.pc0
             self._mratio = mratio
             self._chi = self._qratio / mratio
-            self._ptau = energy / norm - self._one
-            self._delta = pc / norm - self._one
+            self._ptau = energy / norm - 1
+            self._delta = pc / norm - 1
             self.px = self._make_attr(Px) / norm
             self.py = self._make_attr(Py) / norm
 
