@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Dict
+from .mathlibs import convert_attr
 
 _function = type(lambda: None)
 
@@ -77,4 +78,15 @@ class Base(metaclass=_MetaElement):
 
 
 class Element(Base):
-    pass
+    def change_field_type(self, fname, dtype):
+        if fname in self.get_fields(True):
+            setattr(self, fname, convert_attr(getattr(self, fname)))
+
+    def change_all_fields_type(
+        self, dtype, keepextra=False, exclude_fields=()
+    ):
+        _fields_to_conv = [
+            nn for nn in self.get_fields(keepextra) if nn not in exclude_fields
+        ]
+        for nn in _fields_to_conv:
+            self.change_field_type(nn, dtype)
