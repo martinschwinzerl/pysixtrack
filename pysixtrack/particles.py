@@ -36,7 +36,9 @@ def _find_attr_length(sep=",", **kwargs):
         if value is None:
             continue
         elif isinstance(value, str):
-            ll = sep is not None and sep in value and len(value.split(sep)) or 1
+            ll = (
+                sep is not None and sep in value and len(value.split(sep)) or 1
+            )
         else:
             try:
                 it = iter(value)
@@ -45,7 +47,7 @@ def _find_attr_length(sep=",", **kwargs):
             else:
                 ll = sum(1 for _ in iter)
 
-        if not(ll is None):
+        if not (ll is None):
             if length is None:
                 length = ll
             elif length == ll:
@@ -175,11 +177,18 @@ class Particles(object):
     elemid  int
     """
 
-    def _make_attr(self, value, dtype=None, default=0, sep=','):
+    def _make_attr(self, value, dtype=None, default=0, sep=","):
+        """Runs _make_attr with default values from the particle instance"""
         if dtype is None:
             dtype = self._m.real_type
-        return _make_attr(value, self.num_particles, dtype, self.is_vector,
-                          default=default, sep=sep)
+        return _make_attr(
+            value,
+            self.num_particles,
+            dtype,
+            self.is_vector,
+            default=default,
+            sep=sep,
+        )
 
     def _g1(self, mass0, pc0, energy0):
         pc0 = self._make_attr(pc0)
@@ -255,18 +264,18 @@ class Particles(object):
             gamma0  = {gamma0},
             beta0   = {beta0}"""
             )
-        if not(_new is None):
+        if not (_new is None):
             self._update_ref(*_new)
 
     def __init__delta(self, delta, ptau, psigma):
         not_none = count_not_none(delta, ptau, psigma)
         if not_none == 1:
-            if not(delta is None):
+            if not (delta is None):
                 self.delta = delta
-            elif not(ptau is None):
+            elif not (ptau is None):
                 self.ptau = ptau
             else:
-                assert not(psigma is None)
+                assert not (psigma is None)
                 self.psigma = psigma
         elif not_none == 0:
             self.delta = self._make_attr(0)
@@ -282,11 +291,11 @@ class Particles(object):
     def __init__zeta(self, zeta, tau, sigma):
         not_none = count_not_none(zeta, tau, sigma)
         if not_none == 1:
-            if not(zeta is None):
+            if not (zeta is None):
                 self.zeta = zeta
-            elif not(tau is None):
+            elif not (tau is None):
                 self.tau = tau
-            elif not(sigma is None):
+            elif not (sigma is None):
                 self.sigma = sigma
         elif not_none == 0:
             self.zeta = self._make_attr(0)
@@ -699,7 +708,7 @@ class Particles(object):
             py=twiss.py[:],
             tau=twiss.t[:],
             ptau=twiss.pt[:],
-            mathlib=mathlib
+            mathlib=mathlib,
         )
         return out
 
