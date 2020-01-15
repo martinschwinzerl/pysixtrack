@@ -1,7 +1,7 @@
 import setuptools
 import sys
 
-requirements = {"install": ["numpy"]}
+requirements = {"install": ["numpy", "scipy"]}
 
 if sys.version_info < (3, 7):
     requirements["install"].append("dataclasses")
