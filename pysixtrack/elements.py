@@ -6,6 +6,7 @@ from .be_beamfields.beambeam import BeamBeam6D
 from .be_beamfields.spacecharge import SCCoasting
 from .be_beamfields.spacecharge import SCQGaussProfile
 from .be_beamfields.spacecharge import SCInterpolatedProfile
+from .be_pyheadtail import PyHEADTAILInterface
 
 _factorial = np.array(
     [
