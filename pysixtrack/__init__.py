@@ -1,4 +1,4 @@
-__version__ = "0.0.5"
+__version__ = "0.7.0"
 
 from . import base_classes
 from . import elements
