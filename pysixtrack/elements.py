@@ -451,6 +451,26 @@ class DipoleEdge(Element):
         p.py += r43 * p.y
 
 
+class EndTrackingMarker(Element):
+    _description = [
+        ("end_turn", "", "Ends tracking of turn", True),
+        ("end_turn_start_elemid", "", "Start elemid after ending turn", 0),
+        ("end_turn_start_s", "m", "Start s value after ending turn", 0.0),
+        (
+            "end_turn_start_index",
+            "",
+            "Start lattice index after ending turn",
+            0,
+        ),
+    ]
+
+    def track(self, p):
+        if self.end_turn:
+            p.elemid = self.end_turn_start_elemid
+            p.s = self.end_turn_start_s
+            p.turn += 1
+
+
 __all__ = [
     "BeamBeam4D",
     "BeamBeam6D",
@@ -469,4 +489,5 @@ __all__ = [
     "SCQGaussProfile",
     "SRotation",
     "XYShift",
+    "EndTrackingMarker",
 ]
